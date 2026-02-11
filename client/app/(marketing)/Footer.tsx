@@ -1,5 +1,4 @@
-// app/(marketing)/Footer.tsx
-import { Github, Twitter, Mail, ExternalLink } from "lucide-react";
+import { Mail, ExternalLink, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 export default function Footer() {
@@ -8,7 +7,6 @@ export default function Footer() {
       <div className="container mx-auto px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           
-          {/* Explain crisis lens in a short sentence */}
           <div className="col-span-1 md:col-span-1">
             <div className="text-2xl font-black text-blue-600 tracking-tighter mb-4">
               CrisisLens
@@ -18,28 +16,27 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Quick nav */}
-          {/* This needs to be updated in the future to create actual links for the features we have, as well as the library. */}
           <div>
             <h4 className="font-bold text-slate-900 mb-4">Platform</h4>
             <ul className="space-y-2 text-sm text-slate-500">
-              <li><Link href="#features" className="hover:text-blue-600 transition-colors">Features</Link></li>
-              <li><Link href="#scenarios" className="hover:text-blue-600 transition-colors">Crisis Library</Link></li>
+              <li><Link href="#features" className="hover:text-blue-600 transition-colors">Stress-Testing</Link></li>
+              <li><Link href="#library" className="hover:text-blue-600 transition-colors">Crisis Library</Link></li>
+              <li><Link href="#analysis" className="hover:text-blue-600 transition-colors">Sentiment Analysis</Link></li>
             </ul>
           </div>
 
-          {/* About us section. we can crate a small area for info about each of us. We can provide a link to email us or somehting but not really that improtant */}
           <div>
-            <h4 className="font-bold text-slate-900 mb-4">The Visionary</h4>
+            <h4 className="font-bold text-slate-900 mb-4">The Visionaries</h4>
             <p className="text-sm text-slate-500 leading-relaxed mb-4">
-              We are a team of people. Explain each of us and our roles in a sentence or two.
+              Built by a dedicated team of analysts and developers committed to making market history accessible to everyone.
             </p>
             <div className="flex gap-4">
-              <Link href="mailto:hello@crisislens.com" className="text-slate-400 hover:text-red-400"><Mail size={18}/></Link>
+              <Link href="mailto:hello@crisislens.com" className="text-slate-400 hover:text-blue-600 transition-colors">
+                <Mail size={18}/>
+              </Link>
             </div>
           </div>
 
-          {/* Legal Resources. We will need to update this accordingly to have what we truly need. Should not be that big of a deal to finish. */}
           <div>
             <h4 className="font-bold text-slate-900 mb-4">Resources</h4>
             <ul className="space-y-2 text-sm text-slate-500">
@@ -51,17 +48,16 @@ export default function Footer() {
               </li>
             </ul>
           </div>
-
         </div>
 
-        {/* Bottom bar to include the system staus and anything else */}
         <div className="border-t border-slate-100 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-slate-400 text-xs">
             © 2026 CrisisLens Analytics. All rights reserved. Not financial advice.
           </p>
           <div className="flex gap-6 text-xs text-slate-400">
              <span className="flex items-center gap-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-green-500" /> System Status: Operational
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> 
+                System Status: Operational
              </span>
           </div>
         </div>
