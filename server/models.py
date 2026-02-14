@@ -1,0 +1,47 @@
+from sqlalchemy import Column, String, Float, ForeignKey, DateTime, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from datetime import datetime, UTC
+import uuid
+
+from database import Base
+
+
+class Portfolio(Base):
+    """
+    Portfolio model representing a user's investment portfolio.
+    """
+    __tablename__ = "portfolios"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now(UTC), nullable=False)
+    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    
+    # Relationship to holdings
+    holdings = relationship("Holding", back_populates="portfolio", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Portfolio(id={self.id}, name={self.name}, user_id={self.user_id})>"
+
+
+class Holding(Base):
+    """
+    Holding model representing individual stock holdings within a portfolio.
+    """
+    __tablename__ = "holdings"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    portfolio_id = Column(UUID(as_uuid=True), ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    ticker = Column(String(20), nullable=False)
+    shares = Column(Float, nullable=False)
+    avg_price_paid = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationship back to portfolio
+    portfolio = relationship("Portfolio", back_populates="holdings")
+    
+    def __repr__(self):
+        return f"<Holding(id={self.id}, ticker={self.ticker}, shares={self.shares})>"

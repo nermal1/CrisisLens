@@ -10,3 +10,5 @@ requests
 openai
 httpx
 pydantic
+python-jose[cryptography]
+pydantic-settings

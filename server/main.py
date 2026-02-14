@@ -1,7 +1,49 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from jose import JWTError
 
-app = FastAPI(title="CrisisLens API")
+from config import settings
+from routers import portfolios
+
+app = FastAPI(
+    title="CrisisLens API",
+    description="Portfolio stress-testing platform that is protected with Supabase authentication",
+    version="1.0.0"
+    )
+
+# CORS middleware - allows frontend to make requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins, #From ALLOWED_ORIGINS environment variable
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+#Include routers
+app.include_router(portfolios.router)
+
+# Global exception handler for JWT errors
+@app.exception_handler(JWTError)
+async def jwt_exception_handler(request: Request, exc: JWTError):
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={
+            "detail": "Invalid authentication token",
+            "error": str(exc)
+        }
+    )
 
 @app.get("/")
 def read_root():
-    return {"message": "CrisisLens Backend is running!"}
+    return {
+        "message": "CrisisLens Backend is running!",
+        "docs": "/docs",
+        "authentication": "Supabase JWT"
+    }
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
