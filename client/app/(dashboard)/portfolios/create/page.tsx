@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createPortfolio, addHoldings } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -39,35 +39,23 @@ export default function CreatePortfolioPage() {
     setLoading(true);
 
     try {
-      // 1. Create the Portfolio Record
-      // Note: user_id will be handled by Supabase Auth once Nick is done.
-      // For now, it will work if you have RLS disabled or set to "Allow All".
-      const { data: portfolio, error: pError } = await supabase
-        .from("portfolios")
-        .insert([{ name, description }])
-        .select()
-        .single();
+      // 1. Create the Portfolio via FastAPI
+      const portfolio = await createPortfolio(name, description);
 
-      if (pError) throw pError;
-
-      // 2. Prepare Holdings Data
+      // 2. Prepare and add Holdings
       const holdingsData = manualHoldings
-        .filter(h => h.ticker && h.shares) // Only save rows that aren't empty
+        .filter(h => h.ticker && h.shares)
         .map(h => ({
-          portfolio_id: portfolio.id,
           ticker: h.ticker,
           shares: parseFloat(h.shares),
           avg_price_paid: parseFloat(h.price || "0"),
         }));
 
       if (holdingsData.length > 0) {
-        const { error: hError } = await supabase
-          .from("holdings")
-          .insert(holdingsData);
-        if (hError) throw hError;
+        await addHoldings(portfolio.id, holdingsData);
       }
 
-      router.push("/portfolio-hub"); // Redirect back to hub
+      router.push("/portfolios");
       router.refresh();
     } catch (error: any) {
       alert(error.message);

@@ -18,7 +18,7 @@ class Portfolio(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now(UTC), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    
     
     # Relationship to holdings
     holdings = relationship("Holding", back_populates="portfolio", cascade="all, delete-orphan")

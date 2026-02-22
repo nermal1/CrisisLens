@@ -26,8 +26,11 @@ class PortfolioCreate(BaseModel):
     description: str | None = None
 
 
+from uuid import UUID
+from datetime import datetime
+
 class HoldingResponse(BaseModel):
-    id: str
+    id: UUID
     ticker: str
     shares: float
     avg_price_paid: float | None
@@ -37,15 +40,16 @@ class HoldingResponse(BaseModel):
 
 
 class PortfolioResponse(BaseModel):
-    id: str
-    user_id: str
+    id: UUID
+    user_id: UUID
     name: str
     description: str | None
-    created_at: str
+    created_at: datetime
     holdings: List[HoldingResponse] = []
     
     class Config:
         from_attributes = True
+
 
 
 @router.get("/", response_model=List[PortfolioResponse])
@@ -136,3 +140,41 @@ async def delete_portfolio(
     db.commit()
     
     return None
+
+@router.post("/{portfolio_id}/holdings", status_code=status.HTTP_201_CREATED)
+async def add_holdings(
+    portfolio_id: str,
+    holdings_data: List[HoldingCreate],
+    user: CurrentUser,
+    db: DBSession
+):
+    """
+    Add holdings to a portfolio.
+    Only allows if the portfolio belongs to the authenticated user.
+    """
+    # Verify portfolio ownership
+    portfolio = db.query(Portfolio).filter(
+        Portfolio.id == portfolio_id,
+        Portfolio.user_id == user["user_id"]
+    ).first()
+
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found or you don't have access"
+        )
+
+    new_holdings = []
+    for h in holdings_data:
+        holding = Holding(
+            id=uuid.uuid4(),
+            portfolio_id=portfolio_id,
+            ticker=h.ticker,
+            shares=h.shares,
+            avg_price_paid=h.avg_price_paid
+        )
+        db.add(holding)
+        new_holdings.append(holding)
+
+    db.commit()
+    return {"message": f"Added {len(new_holdings)} holdings"}

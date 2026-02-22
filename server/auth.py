@@ -1,52 +1,36 @@
-from jose import jwt, JWTError
-from datetime import datetime
+from jose import JWTError
+import json
+import urllib.request
+import urllib.error
 from config import settings
 
 
 def verify_supabase_jwt(token: str) -> dict:
     """
-    Verify and decode a Supabase JWT token.
-    
-    Args:
-        token: The JWT token string from the Authorization header
-        
-    Returns:
-        dict: Decoded token payload containing user information
-        
-    Raises:
-        JWTError: If token is invalid, expired, or verification fails
+    Verify a Supabase JWT by calling Supabase's /auth/v1/user endpoint.
+    Supabase validates the token server-side and returns the user data.
     """
+    url = f"{settings.SUPABASE_URL}/auth/v1/user"
+    req = urllib.request.Request(url)
+    req.add_header("apikey", settings.SUPABASE_ANON_KEY)
+    req.add_header("Authorization", f"Bearer {token}")
+
     try:
-        # Decode and verify the JWT token
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],  # Supabase uses HS256 by default
-            audience="authenticated",  # Must match Supabase's audience claim
-            options={
-                "verify_signature": True,
-                "verify_exp": True,  # Verify expiration
-                "verify_aud": True,  # Verify audience
-            }
-        )
-        
-        # Validate that the token has required claims
-        if not payload.get("sub"):
-            raise JWTError("Token missing 'sub' (subject) claim")
-        
-        # Optional: Verify issuer matches your Supabase URL
-        token_issuer = payload.get("iss", "")
-        if settings.SUPABASE_URL not in token_issuer:
-            raise JWTError(f"Invalid issuer: {token_issuer}")
-        
-        return payload
-    
-    except jwt.ExpiredSignatureError:
-        raise JWTError("Token has expired")
-    except jwt.JWTClaimsError as e:
-        raise JWTError(f"Invalid token claims: {str(e)}")
-    except Exception as e:
-        raise JWTError(f"Token verification failed: {str(e)}")
+        with urllib.request.urlopen(req) as response:
+            user_data = json.loads(response.read())
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            raise JWTError("Token expired or invalid")
+        raise JWTError(f"Token verification failed: {e.code} {e.reason}")
+
+    if not user_data.get("id"):
+        raise JWTError("Invalid token: no user ID returned")
+
+    return {
+        "sub": user_data["id"],
+        "email": user_data.get("email"),
+        "role": user_data.get("role", "authenticated"),
+    }
 
 
 def extract_user_from_token(payload: dict) -> dict:

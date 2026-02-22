@@ -1,8 +1,19 @@
 "use client";
 import Link from "next/link";
-import { LayoutDashboard, PieChart, Newspaper, BookOpen, Activity } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LayoutDashboard, PieChart, Newspaper, BookOpen, Activity, LogOut } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { signOut } from "@/lib/auth";
 
 export default function Navbar() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  async function handleSignOut() {
+    await signOut();
+    router.push("/login");
+  }
+
   return (
     <nav className="border-b bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-50">
       <div className="flex items-center gap-2">
@@ -17,7 +28,24 @@ export default function Navbar() {
         <Link href="/news" className="flex items-center gap-2 hover:text-blue-600"><Newspaper size={18}/> News</Link>
       </div>
       <div className="flex items-center gap-4">
-        <button className="text-sm font-medium hover:underline">Log in</button>
+        {loading ? (
+          <span className="text-sm text-slate-400">Loading...</span>
+        ) : user ? (
+          <>
+            <span className="text-sm text-slate-600">{user.email}</span>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-red-600"
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+          </>
+        ) : (
+          <Link href="/login" className="text-sm font-medium hover:underline">
+            Log in
+          </Link>
+        )}
       </div>
     </nav>
   );

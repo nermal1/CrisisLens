@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from jose import JWTError
 
 from config import settings
-from routers import portfolios
+from routers import portfolios, auth_email
 
 app = FastAPI(
     title="CrisisLens API",
@@ -23,6 +23,7 @@ app.add_middleware(
 
 #Include routers
 app.include_router(portfolios.router)
+app.include_router(auth_email.router)
 
 # Global exception handler for JWT errors
 @app.exception_handler(JWTError)

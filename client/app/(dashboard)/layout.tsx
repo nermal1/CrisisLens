@@ -1,18 +1,17 @@
-// client/app/(dashboard)/layout.tsx
-import Sidebar from "@/components/ui/Navbar"; // navbar component
+import Sidebar from "@/components/ui/Navbar";
+import ProtectedRoute from "@/components/ui/ProtectedRoute";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* Navbar on the top of the screen */}
-      <div className="w-full border-b bg-white">
-        <Sidebar /> 
+    <ProtectedRoute>
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        <div className="w-full border-b bg-white">
+          <Sidebar />
+        </div>
+        <main className="flex-1 container mx-auto p-8">
+          {children}
+        </main>
       </div>
-      
-      {/* content will be under the navbar */}
-      <main className="flex-1 container mx-auto p-8">
-        {children}
-      </main>
-    </div>
+    </ProtectedRoute>
   );
 }

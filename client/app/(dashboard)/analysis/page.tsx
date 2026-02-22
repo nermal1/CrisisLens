@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { fetchPortfolios } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, ArrowDownRight, Bot, Calendar, ShieldAlert } from "lucide-react";
@@ -25,12 +25,16 @@ export default function AnalysisDashboardPage() {
   const [isZoomed, setIsZoomed] = useState(false);
 
   useEffect(() => {
-    async function fetchPortfolios() {
-      const { data } = await supabase.from("portfolios").select("id, name");
-      if (data) setPortfolios(data);
-      if (portfolioIdFromUrl) setSelectedPortfolio(portfolioIdFromUrl);
+    async function loadPortfolios() {
+      try {
+        const data = await fetchPortfolios();
+        if (data) setPortfolios(data);
+        if (portfolioIdFromUrl) setSelectedPortfolio(portfolioIdFromUrl);
+      } catch (error: any) {
+        console.error("Error fetching portfolios:", error.message);
+      }
     }
-    fetchPortfolios();
+    loadPortfolios();
   }, [portfolioIdFromUrl]);
 
   return (

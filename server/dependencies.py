@@ -63,12 +63,14 @@ async def get_current_user(
         return user
     
     except JWTError as e:
+        print(f"JWT ERROR: {e}")  # <-- add this line
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as e:
+        print(f"AUTH ERROR: {e}")  # <-- add this line
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Authentication failed: {str(e)}",

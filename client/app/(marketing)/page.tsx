@@ -175,7 +175,7 @@ export default function LandingPage() {
           Study the <span className="text-blue-600">Past.</span><br/>Survive the <span className="text-blue-600">Future.</span>
         </h1>
         <div className="mt-8 flex justify-center">
-          <Link href="/login">
+          <Link href="/signup">
             <Button size="lg" className="h-14 px-8 text-lg rounded-full bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-200">
               Launch Simulator <ArrowRight className="ml-2" size={18} />
             </Button>

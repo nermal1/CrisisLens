@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str | None = None
     SUPABASE_SERVICE_ROLE_KEY: str | None = None
     SUPABASE_JWT_SECRET: str
+    RESEND_API_KEY: str | None = None
     
     # Database Configuration
     DATABASE_URL: str

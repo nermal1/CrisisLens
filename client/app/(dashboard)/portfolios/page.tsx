@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { fetchPortfolios, deletePortfolio } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, ArrowRight, Wallet, Trash2, Loader2 } from "lucide-react";
@@ -11,44 +11,33 @@ export default function PortfoliosHubPage() {
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. Fetch Portfolios and count of holdings from Supabase
+  // 1. Fetch Portfolios from FastAPI backend
   useEffect(() => {
-    async function fetchPortfolios() {
+    async function loadPortfolios() {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('portfolios')
-        .select(`
-          *,
-          holdings (count)
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error("Error fetching portfolios:", error.message);
-      } else {
+      try {
+        const data = await fetchPortfolios();
         setPortfolios(data || []);
+      } catch (error: any) {
+        console.error("Error fetching portfolios:", error.message);
       }
       setLoading(false);
     }
-    fetchPortfolios();
+    loadPortfolios();
   }, []);
 
   // 2. Handle Deleting a Portfolio
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.preventDefault(); // Prevent clicking through to the detail page
+    e.preventDefault();
     e.stopPropagation();
 
     if (!confirm("Are you sure you want to delete this portfolio? All holdings will be lost.")) return;
 
-    const { error } = await supabase
-      .from('portfolios')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      alert("Error deleting: " + error.message);
-    } else {
+    try {
+      await deletePortfolio(id);
       setPortfolios(portfolios.filter(p => p.id !== id));
+    } catch (error: any) {
+      alert("Error deleting: " + error.message);
     }
   };
 
@@ -114,7 +103,7 @@ export default function PortfoliosHubPage() {
                   <div className="text-right">
                       <p className="text-xs text-slate-500 uppercase font-semibold">Holdings</p>
                       <p className="text-sm font-medium text-slate-900">
-                        {portfolio.holdings?.[0]?.count || 0} Assets
+                        {portfolio.holdings?.length || 0} Assets
                       </p>
                   </div>
                 </div>
