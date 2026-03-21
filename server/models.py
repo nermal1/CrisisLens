@@ -63,3 +63,16 @@ class GlobalTicker(Base):
 
     def __repr__(self):
         return f"<GlobalTicker(symbol={self.symbol}, name={self.name})>"
+    
+class AnalysisRun(Base):
+    __tablename__ = "analysis_runs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    portfolio_id = Column(UUID(as_uuid=True), ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    scenario_id = Column(String(100), nullable=False)
+    scenario_name = Column(String(255), nullable=False)
+    start_date = Column(String(20), nullable=True)
+    end_date = Column(String(20), nullable=True)
+    created_at = Column(DateTime, default=datetime.now(UTC), nullable=False)
+    notes = Column(Text, nullable=True)

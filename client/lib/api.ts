@@ -12,18 +12,50 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
  * HELPER: Get fresh Auth Headers
  */
 async function getAuthHeaders() {
-  const { data: { session }, error } = await supabase.auth.getSession();
-  
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
   if (error || !session?.access_token) {
     console.error("Supabase Session Error:", error);
     throw new Error("Session expired or not found. Please log in.");
   }
 
   return {
-    "Authorization": `Bearer ${session.access_token}`,
+    Authorization: `Bearer ${session.access_token}`,
     "Content-Type": "application/json",
   };
 }
+
+/**
+ * TYPES
+ */
+
+export type AnalysisRunPayload = {
+  portfolio_id: string;
+  scenario_id: string;
+  scenario_name: string;
+  start_date?: string;
+  end_date?: string;
+  vulnerability_score?: number;
+  timeline_view?: string;
+  notes?: string;
+};
+
+export type AnalysisRun = {
+  id: string;
+  user_id: string;
+  portfolio_id: string;
+  scenario_id: string;
+  scenario_name: string;
+  start_date?: string;
+  end_date?: string;
+  vulnerability_score?: number;
+  timeline_view?: string;
+  notes?: string;
+  created_at: string;
+};
 
 /**
  * PORTFOLIO ACTIONS
@@ -32,6 +64,7 @@ async function getAuthHeaders() {
 export async function fetchPortfolios() {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/portfolios/`, { headers });
+
   if (!res.ok) throw new Error("Failed to fetch portfolios");
   return res.json();
 }
@@ -39,11 +72,12 @@ export async function fetchPortfolios() {
 export async function fetchPortfolioById(id: string) {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/portfolios/${id}`, { headers });
-  
+
   if (!res.ok) {
     const errorData = await res.json();
     throw new Error(errorData.detail || "Unauthorized access to portfolio");
   }
+
   return res.json();
 }
 
@@ -54,26 +88,46 @@ export async function createPortfolio(name: string, description: string) {
     headers,
     body: JSON.stringify({ name, description }),
   });
+
   if (!res.ok) throw new Error("Failed to create portfolio");
   return res.json();
 }
 
-export async function fetchPortfolioHistory(id: string, period: string) {
+export async function fetchPortfolioHistory(
+  id: string,
+  period?: string,
+  start?: string,
+  end?: string
+) {
   const headers = await getAuthHeaders();
-  // We map the UI labels (1Y) to yfinance periods (1y)
-  const formattedPeriod = period.toLowerCase();
-  const res = await fetch(`${API_URL}/portfolios/${id}/history?period=${formattedPeriod}`, { headers });
+
+  const params = new URLSearchParams();
+
+  if (start && end) {
+    params.set("start", start);
+    params.set("end", end);
+  } else if (period) {
+    params.set("period", period.toLowerCase());
+  } else {
+    params.set("period", "1y");
+  }
+
+  const res = await fetch(
+    `${API_URL}/portfolios/${id}/history?${params.toString()}`,
+    { headers }
+  );
+
   if (!res.ok) throw new Error("Failed to fetch history");
   return res.json();
 }
 
-// THIS WAS THE MISSING FUNCTION
 export async function deletePortfolio(id: string) {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/portfolios/${id}`, {
     method: "DELETE",
     headers,
   });
+
   if (!res.ok) throw new Error("Failed to delete portfolio");
 }
 
@@ -91,8 +145,70 @@ export async function addHoldings(
     headers,
     body: JSON.stringify(holdings),
   });
+
   if (!res.ok) throw new Error("Failed to add holdings");
   return res.json();
+}
+
+/**
+ * ANALYSIS RUN HISTORY ACTIONS (FR-13)
+ */
+
+export async function saveAnalysisRun(payload: AnalysisRunPayload) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/portfolios/analysis-runs`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.detail || "Failed to save analysis run");
+  }
+
+  return res.json();
+}
+
+export async function fetchAnalysisRuns(): Promise<AnalysisRun[]> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/portfolios/analysis-runs`, {
+    headers,
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.detail || "Failed to fetch analysis runs");
+  }
+
+  return res.json();
+}
+
+export async function fetchAnalysisRunById(runId: string): Promise<AnalysisRun> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/portfolios/analysis-runs/${runId}`, {
+    headers,
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.detail || "Failed to fetch analysis run");
+  }
+
+  return res.json();
+}
+
+export async function deleteAnalysisRun(runId: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/portfolios/analysis-runs/${runId}`, {
+    method: "DELETE",
+    headers,
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.detail || "Failed to delete analysis run");
+  }
 }
 
 /**
@@ -102,6 +218,7 @@ export async function addHoldings(
 export async function searchTickers(query: string) {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/tickers/search?q=${query}`, { headers });
+
   if (!res.ok) return [];
   return res.json();
 }
