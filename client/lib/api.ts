@@ -222,3 +222,28 @@ export async function searchTickers(query: string) {
   if (!res.ok) return [];
   return res.json();
 }
+
+export async function createCustomScenario(payload: {
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+}) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/portfolios/custom-scenarios`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error("Failed to create custom scenario");
+  return res.json();
+}
+
+export async function fetchCustomScenarios() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/portfolios/custom-scenarios`, { headers });
+
+  if (!res.ok) throw new Error("Failed to fetch custom scenarios");
+  return res.json();
+}

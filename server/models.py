@@ -76,3 +76,14 @@ class AnalysisRun(Base):
     end_date = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=datetime.now(UTC), nullable=False)
     notes = Column(Text, nullable=True)
+
+class CustomScenario(Base):
+    __tablename__ = "custom_scenarios"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    start_date = Column(String(20), nullable=False)
+    end_date = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(UTC), nullable=False)

@@ -11,7 +11,15 @@ import {
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bot, Calendar, ShieldAlert, History, Trash2, Save } from "lucide-react";
+import {
+  Bot,
+  Calendar,
+  ShieldAlert,
+  History,
+  Trash2,
+  Save,
+  PlusCircle,
+} from "lucide-react";
 import PerformanceChart from "@/components/ui/PerformanceChart";
 
 const SCENARIOS = [
@@ -20,66 +28,77 @@ const SCENARIOS = [
     label: "COVID-19 Crash (2020)",
     startDate: "2020-02-01",
     endDate: "2020-03-23",
+    description: "Pandemic-driven market crash during early 2020.",
   },
   {
     id: "great-recession",
     label: "2008 Financial Crisis",
     startDate: "2007-10-01",
     endDate: "2009-03-01",
+    description: "Global financial crisis triggered by housing and credit collapse.",
   },
   {
     id: "dot-com-bubble",
     label: "Dot-Com Bubble (2000)",
     startDate: "2000-03-10",
     endDate: "2002-10-09",
+    description: "Technology stock bubble burst after speculative overvaluation.",
   },
   {
     id: "black-monday",
     label: "Black Monday (1987)",
     startDate: "1987-10-14",
     endDate: "1987-10-19",
+    description: "Historic one-day stock market crash in October 1987.",
   },
   {
     id: "debt-ceiling-crisis",
     label: "U.S. Debt Ceiling Crisis (2011)",
     startDate: "2011-04-01",
     endDate: "2011-08-31",
+    description: "Political deadlock over U.S. debt ceiling triggered volatility.",
   },
   {
     id: "oil-embargo-recession",
     label: "1973 Oil Embargo & Stagflation Crisis",
     startDate: "1973-10-01",
     endDate: "1975-03-31",
+    description: "Oil embargo, inflation surge, and recessionary market stress.",
   },
   {
     id: "rate-hike-bear-market",
     label: "Rate Hike Bear Market (2022)",
     startDate: "2022-01-01",
     endDate: "2022-10-31",
+    description: "Aggressive Fed tightening caused broad equity selloff.",
   },
   {
     id: "russia-ukraine-war",
     label: "Russia–Ukraine War (2022)",
     startDate: "2022-02-24",
     endDate: "2022-06-30",
+    description: "Geopolitical conflict drove market, energy, and commodity volatility.",
   },
   {
     id: "svb-banking-crisis",
     label: "SVB Banking Crisis (2023)",
     startDate: "2023-03-01",
     endDate: "2023-03-31",
+    description: "Regional banking stress sparked by Silicon Valley Bank collapse.",
   },
   {
     id: "volcker-shock",
     label: "Volcker Shock (1979–1982)",
     startDate: "1979-08-01",
     endDate: "1982-12-31",
+    description: "High interest rates to fight inflation created major market pressure.",
   },
   {
     id: "volmageddon",
     label: "Volmageddon (2018)",
     startDate: "2018-01-01",
     endDate: "2018-02-28",
+    description: "Volatility spike caused inverse-volatility products to collapse.",
   },
 ];
 
@@ -91,6 +110,8 @@ export default function AnalysisDashboardPage() {
   const scenarioFromUrl = searchParams.get("scenario") || "covid-19";
   const startFromUrl = searchParams.get("start") || "";
   const endFromUrl = searchParams.get("end") || "";
+  const customNameFromUrl = searchParams.get("name") || "";
+  const customDescriptionFromUrl = searchParams.get("description") || "";
 
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [runHistory, setRunHistory] = useState<AnalysisRun[]>([]);
@@ -100,17 +121,31 @@ export default function AnalysisDashboardPage() {
   const [isSavingRun, setIsSavingRun] = useState(false);
   const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 
+  const [customScenarioName, setCustomScenarioName] = useState(customNameFromUrl);
+  const [customScenarioDescription, setCustomScenarioDescription] = useState(
+    customDescriptionFromUrl
+  );
+  const [customStartDate, setCustomStartDate] = useState(startFromUrl);
+  const [customEndDate, setCustomEndDate] = useState(endFromUrl);
+
   const selectedScenarioData = useMemo(() => {
     const found = SCENARIOS.find((s) => s.id === selectedScenario);
     if (found) return found;
 
     return {
       id: selectedScenario,
-      label: selectedScenario.replace(/-/g, " "),
+      label: customNameFromUrl || selectedScenario.replace(/-/g, " "),
       startDate: startFromUrl,
       endDate: endFromUrl,
+      description: customDescriptionFromUrl || "Custom user-defined scenario.",
     };
-  }, [selectedScenario, startFromUrl, endFromUrl]);
+  }, [
+    selectedScenario,
+    startFromUrl,
+    endFromUrl,
+    customNameFromUrl,
+    customDescriptionFromUrl,
+  ]);
 
   useEffect(() => {
     async function loadData() {
@@ -143,6 +178,21 @@ export default function AnalysisDashboardPage() {
     }
   }, [scenarioFromUrl]);
 
+  useEffect(() => {
+    if (scenarioFromUrl === "custom") {
+      setCustomScenarioName(customNameFromUrl);
+      setCustomScenarioDescription(customDescriptionFromUrl);
+      setCustomStartDate(startFromUrl);
+      setCustomEndDate(endFromUrl);
+    }
+  }, [
+    scenarioFromUrl,
+    customNameFromUrl,
+    customDescriptionFromUrl,
+    startFromUrl,
+    endFromUrl,
+  ]);
+
   function handleUpdateSimulation() {
     const params = new URLSearchParams();
 
@@ -160,6 +210,38 @@ export default function AnalysisDashboardPage() {
       params.set("end", selectedScenarioData.endDate);
     }
 
+    if (selectedScenarioData.id === "custom") {
+      params.set("name", customScenarioName || "Custom Scenario");
+      params.set("description", customScenarioDescription || "");
+    }
+
+    router.push(`/analysis?${params.toString()}`);
+  }
+
+  function handleApplyCustomScenario() {
+    if (!customScenarioName.trim() || !customStartDate || !customEndDate) {
+      alert("Please enter a custom scenario name, start date, and end date.");
+      return;
+    }
+
+    if (customEndDate < customStartDate) {
+      alert("End date must be after the start date.");
+      return;
+    }
+
+    const params = new URLSearchParams();
+
+    if (selectedPortfolio) {
+      params.set("portfolioId", selectedPortfolio);
+    }
+
+    params.set("scenario", "custom");
+    params.set("name", customScenarioName.trim());
+    params.set("description", customScenarioDescription.trim());
+    params.set("start", customStartDate);
+    params.set("end", customEndDate);
+
+    setSelectedScenario("custom");
     router.push(`/analysis?${params.toString()}`);
   }
 
@@ -180,7 +262,10 @@ export default function AnalysisDashboardPage() {
         end_date: selectedScenarioData.endDate,
         vulnerability_score: 85,
         timeline_view: isZoomed ? "crash" : "full",
-        notes: `Saved analysis for ${selectedScenarioData.label}`,
+        notes:
+          selectedScenarioData.id === "custom"
+            ? `Saved custom analysis: ${selectedScenarioData.label} — ${customScenarioDescription || "No description"}`
+            : `Saved analysis for ${selectedScenarioData.label}`,
       });
 
       setRunHistory((prev) => [savedRun, ...prev]);
@@ -204,6 +289,13 @@ export default function AnalysisDashboardPage() {
 
     if (run.end_date) {
       params.set("end", run.end_date);
+    }
+
+    if (run.scenario_id === "custom") {
+      params.set("name", run.scenario_name);
+      if (run.notes) {
+        params.set("description", run.notes);
+      }
     }
 
     router.push(`/analysis?${params.toString()}`);
@@ -262,6 +354,7 @@ export default function AnalysisDashboardPage() {
                     {s.label}
                   </option>
                 ))}
+                <option value="custom">Custom Scenario</option>
               </select>
             </div>
 
@@ -273,6 +366,64 @@ export default function AnalysisDashboardPage() {
                 {selectedScenarioData.startDate || "N/A"} →{" "}
                 {selectedScenarioData.endDate || "N/A"}
               </p>
+              <p className="mt-2 text-xs text-slate-500">
+                {selectedScenarioData.description || "No description available."}
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-lg border bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase text-slate-400">
+                Custom Scenario Creation
+              </p>
+
+              <input
+                type="text"
+                placeholder="Scenario name"
+                value={customScenarioName}
+                onChange={(e) => setCustomScenarioName(e.target.value)}
+                className="w-full p-2 border rounded-md text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <textarea
+                placeholder="Description"
+                value={customScenarioDescription}
+                onChange={(e) => setCustomScenarioDescription(e.target.value)}
+                rows={3}
+                className="w-full p-2 border rounded-md text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <div>
+                <label className="text-xs font-medium text-slate-500">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="w-full mt-1 p-2 border rounded-md text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-500">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="w-full mt-1 p-2 border rounded-md text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={handleApplyCustomScenario}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Apply Custom Scenario
+              </Button>
             </div>
 
             <div>

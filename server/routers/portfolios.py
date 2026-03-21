@@ -347,3 +347,45 @@ async def delete_analysis_run(run_id: UUID, user: CurrentUser, db: DBSession):
     db.delete(run)
     db.commit()
     return None
+
+class CustomScenarioCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    start_date: str
+    end_date: str
+
+class CustomScenarioResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    title: str
+    description: Optional[str]
+    start_date: str
+    end_date: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+@router.post("/custom-scenarios", response_model=CustomScenarioResponse)
+async def create_custom_scenario(data: CustomScenarioCreate, user: CurrentUser, db: DBSession):
+    new_scenario = CustomScenario(
+        id=uuid.uuid4(),
+        user_id=user["user_id"],
+        title=data.title,
+        description=data.description,
+        start_date=data.start_date,
+        end_date=data.end_date,
+    )
+    db.add(new_scenario)
+    db.commit()
+    db.refresh(new_scenario)
+    return new_scenario
+
+@router.get("/custom-scenarios", response_model=List[CustomScenarioResponse])
+async def get_custom_scenarios(user: CurrentUser, db: DBSession):
+    return (
+        db.query(CustomScenario)
+        .filter(CustomScenario.user_id == user["user_id"])
+        .order_by(CustomScenario.created_at.desc())
+        .all()
+    )
