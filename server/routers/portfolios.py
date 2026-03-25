@@ -114,7 +114,7 @@ CRISIS_BETAS = {
         "Gold Miners": 3.73, "Steel": 3.33, "Oil & Gas Exploration": 3.55,
         "Oil Services": 4.59, "Clean Energy": 1.70, "Default": 1.0
     },
-    "debt-ceiling-crisis": {
+    "debt-ceiling-2011": {
         "Technology": 0.90, "Financials": 1.58, "Energy": 1.26, "Healthcare": 0.99,
         "Consumer Staples": 0.70, "Consumer Discretionary": 1.02, "Industrials": 1.38,
         "Utilities": 0.65, "Materials": 1.24, "Real Estate": 1.0, "Communication Services": 1.0,
