@@ -602,7 +602,6 @@ def calculate_dynamic_sector_betas(start_date: str, end_date: str) -> dict:
             else:
                 dynamic_betas[sector] = 1.0
                 
-        print(f"Generated Custom Betas for {start_date} to {end_date}: {dynamic_betas}")
         return dynamic_betas
         
     except Exception as e:
@@ -660,9 +659,6 @@ async def analyze_portfolio_crisis(
     else:
         scenario_betas = CRISIS_BETAS.get(scenario, {})
 
-    print(f"Debugging {scenario.upper()}")
-    print(f"1. Did we find the scenario dict? {'YES' if scenario_betas else 'NO (Betas are empty)'}")
-    print(f"2. Number of betas loaded: {len(scenario_betas)}")
 
     total_portfolio_value = 0.0
     stock_values = {}
@@ -696,8 +692,6 @@ async def analyze_portfolio_crisis(
             industry = TERM_MAP.get(raw_industry, raw_industry)
 
             stock_beta = scenario_betas.get(industry, scenario_betas.get(sector, 1.0))
-
-            print(f"Ticker: {ticker} | DB Sector: {raw_sector} | Mapped Sector: {sector} | Assigned Beta: {stock_beta}")
 
             portfolio_beta += (weight * stock_beta)
 

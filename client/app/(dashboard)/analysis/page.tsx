@@ -353,8 +353,8 @@ export default function AnalysisDashboardPage() {
                       <span className="text-sm font-bold text-slate-800 pr-2 leading-tight">
                         {run.notes || "Unnamed Run"}
                       </span>
-                      <span className={`text-sm font-black ${run.vulnerability_score > 50 ? 'text-red-500' : 'text-green-500'}`}>
-                        {run.vulnerability_score}
+                      <span className={`text-sm font-black ${(run.vulnerability_score ?? 0) > 50 ? 'text-red-500' : 'text-green-500'}`}>
+                        {run.vulnerability_score ?? "--"}
                       </span>
                     </div>
                     
