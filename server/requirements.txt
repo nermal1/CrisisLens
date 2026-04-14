@@ -12,3 +12,6 @@ httpx
 pydantic
 python-jose[cryptography]
 pydantic-settings
+tensorflow
+scikit-learn
+keras

@@ -874,7 +874,7 @@ async def analyze_portfolio_crisis(
             portfolio_series = pd.Series(0.0, index=stock_prices.index)
             for ticker, shares in holding_map.items():
                 if ticker in stock_prices.columns:
-                    portfolio_series += stock_prices[ticker].fillna(method="ffill") * shares
+                    portfolio_series += stock_prices[ticker].ffill() * shares
             portfolio_series = portfolio_series.dropna()
 
         risk_metrics = calculate_risk_metrics(portfolio_series)

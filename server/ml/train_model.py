@@ -8,7 +8,6 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional, Layer, Input
 from tensorflow.keras.saving import register_keras_serializable
 
-# 1. Define the Custom Attention Layer (Registers it so it can be saved/loaded)
 @register_keras_serializable()
 class AttentionLayer(Layer):
     def __init__(self, **kwargs):
@@ -28,82 +27,58 @@ class AttentionLayer(Layer):
     def get_config(self):
         return super(AttentionLayer, self).get_config()
 
-def apply_technical_indicators(df, vix_df):
-    """Calculates Pro-level features including Log-Returns and Macro Volatility."""
-    # Ensure we are working with flat 1D lists to avoid pandas MultiIndex errors
-    close_series = df['Close'].squeeze()
-    
-    # Log-Returns (Mathematically superior to percentage change)
-    df['Log_Return'] = np.log(close_series / close_series.shift(1))
-    
-    # Moving Averages
-    df['SMA_20'] = close_series.rolling(window=20).mean()
-    df['SMA_50'] = close_series.rolling(window=50).mean()
-    
-    # RSI
-    delta = close_series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
-    
-    # Portfolio Volatility (20-day rolling standard deviation)
-    df['Volatility'] = df['Log_Return'].rolling(window=20).std()
-    
-    # Merge Macro Context (VIX - The Fear Gauge) safely
-    df['VIX_Close'] = vix_df['Close'].squeeze()
-    
-    # Clean up NaNs
-    return df.bfill().ffill()
 
-FEATURES = ['Close', 'Log_Return', 'SMA_20', 'SMA_50', 'RSI', 'Volatility', 'VIX_Close']
+# Features used — Close is the target (index 0)
+FEATURES = ['Close', 'SMA_20', 'SMA_50', 'RSI']
+
+def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    close = df['Close'].squeeze()
+    df['SMA_20'] = close.rolling(20).mean()
+    df['SMA_50'] = close.rolling(50).mean()
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    df['RSI'] = 100 - (100 / (1 + gain / loss))
+    return df.dropna()
+
 
 def pretrain_base_model():
-    print("--- 🧠 BUILDING PRO-GRADE BASE MODEL ---")
-    print("Fetching 10 years of SPY and VIX data...")
-    
+    print("--- BUILDING BASE MODEL (SPY 10yr) ---")
     spy_df = yf.download("SPY", period="10y", progress=False, auto_adjust=True)
-    vix_df = yf.download("^VIX", period="10y", progress=False, auto_adjust=True)
-    
-    df = apply_technical_indicators(spy_df, vix_df)
-    features_data = df[FEATURES].values
-    
+    spy_df = add_indicators(spy_df)
+    data = spy_df[FEATURES].values
+
     scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled_data = scaler.fit_transform(features_data)
+    scaled = scaler.fit_transform(data)
 
-    sequence_length = 60
+    SEQ = 60
     X, y = [], []
-    
-    # Index 1 is 'Log_Return', which is what we want to predict
-    target_index = 1 
-    
-    for i in range(sequence_length, len(scaled_data)):
-        X.append(scaled_data[i-sequence_length:i])
-        y.append(scaled_data[i, target_index])
-    
-    X, y = np.array(X), np.array(y)
+    for i in range(SEQ, len(scaled)):
+        X.append(scaled[i - SEQ:i])
+        y.append(scaled[i, 0])  # Predict next Close (index 0)
 
-    print(f"Constructing Bidirectional LSTM + Attention Network...")
+    X, y = np.array(X), np.array(y)
+    print(f"Training samples: {len(X)}")
+
     model = Sequential([
-        Input(shape=(X.shape[1], X.shape[2])), # <--- Explicit Input layer (Fixes the warning)
-        Bidirectional(LSTM(128, return_sequences=True)), # <--- Removed input_shape here
-        Dropout(0.3),
+        Input(shape=(SEQ, len(FEATURES))),
+        Bidirectional(LSTM(128, return_sequences=True)),
+        Dropout(0.2),
         LSTM(64, return_sequences=True),
         AttentionLayer(),
-        Dense(64, activation='relu'),
+        Dense(32, activation='relu'),
         Dropout(0.2),
-        Dense(1) # Predicting the Log-Return
+        Dense(1)
     ])
+    model.compile(optimizer='adam', loss='mean_squared_error')
 
-    # <--- Changed 'huber_loss' to 'huber' (Fixes the crash)
-    model.compile(optimizer='adam', loss='huber') 
-    
-    print("Training Base Model (This prepares the AI's general market knowledge)...")
-    model.fit(X, y, batch_size=64, epochs=15, verbose=1)
+    print("Training...")
+    model.fit(X, y, batch_size=64, epochs=20, validation_split=0.1, verbose=1)
 
-    model_path = os.path.join(os.path.dirname(__file__), "portfolio_lstm.keras")
-    model.save(model_path)
-    print(f"✅ Success! Pro model saved at {model_path}")
+    path = os.path.join(os.path.dirname(__file__), "portfolio_lstm.keras")
+    model.save(path)
+    print(f"Model saved to {path}")
+
 
 if __name__ == "__main__":
     pretrain_base_model()

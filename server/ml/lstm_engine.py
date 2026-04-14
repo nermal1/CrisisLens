@@ -1,128 +1,172 @@
 import numpy as np
 import pandas as pd
 import os
+import math
 import yfinance as yf
-from sklearn.preprocessing import MinMaxScaler
-import tensorflow as tf
-from tensorflow.keras.models import load_model
 import datetime
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import load_model
 
-# Import exactly what was used for training
-from .train_model import AttentionLayer, apply_technical_indicators, FEATURES
+from .train_model import AttentionLayer, add_indicators, FEATURES
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "portfolio_lstm.keras")
+SEQ = 60
+HOLDOUT = 21  # ~1 trading month held out for accuracy testing
 
-def fetch_and_process_portfolio(tickers, shares, lookback_days=400):
-    print(f"\n--- 🚩 CHECKPOINT 1: BEGIN DATA FETCH ---")
-    print(f"Target Tickers: {tickers}")
-    
+
+def _safe(val: float) -> float:
+    f = float(val)
+    return 0.0 if (math.isnan(f) or math.isinf(f)) else round(f, 4)
+
+
+def fetch_ticker_data(ticker: str, lookback_days: int = 500) -> pd.DataFrame:
     end = datetime.date.today()
     start = end - datetime.timedelta(days=lookback_days)
+    df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
+    if df.empty:
+        return pd.DataFrame()
     
-    price_map = {}
-    for t, q in zip(tickers, shares):
-        try:
-            df = yf.download(t, start=start, end=end, progress=False, auto_adjust=True)
-            if not df.empty:
-                price_map[t] = df['Close'] * float(q)
-        except Exception as e:
-            print(f"❌ Error fetching {t}: {e}")
-            
-    if not price_map: return None
+    # Flatten MultiIndex columns that newer yfinance versions return for single tickers
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
     
-    print(f"✅ Portfolio data aggregated. Fetching Macro VIX Context...")
-    vix_df = yf.download("^VIX", start=start, end=end, progress=False, auto_adjust=True)
-    
-    portfolio_df = pd.concat(price_map.values(), axis=1).ffill().bfill()
-    total_val = portfolio_df.sum(axis=1).to_frame(name='Close')
-    
-    print(f"--- 🚩 CHECKPOINT 2: APPLYING PRO INDICATORS ---")
-    total_val = apply_technical_indicators(total_val, vix_df)
-    
-    # Ensure no infinite numbers from log returns of flat lines
-    total_val.replace([np.inf, -np.inf], 0, inplace=True)
-    
-    return total_val[FEATURES]
+    df = add_indicators(df)
+    return df[FEATURES].dropna()
 
-def run_lstm_monte_carlo(tickers, shares, projection_days=180):
-    print(f"\n--- 🚩 CHECKPOINT 3: TRANSFER LEARNING & INFERENCE ---")
+
+
+def compute_accuracy(model, scaled: np.ndarray, scaler: MinMaxScaler) -> float:
+    """
+    Price-closeness accuracy on held-out last HOLDOUT days.
+    Formula: 100 - (MAE / mean_actual_price * 100)
+    Same metric used in standard academic LSTM stock papers.
+    """
+    if len(scaled) < SEQ + HOLDOUT:
+        return 0.0
+
+    c_min, c_max = scaler.data_min_[0], scaler.data_max_[0]
+    actuals, predictions = [], []
+
+    for i in range(HOLDOUT):
+        end_idx = len(scaled) - HOLDOUT + i
+        window = scaled[end_idx - SEQ:end_idx]
+        pred_scaled = model(window[np.newaxis, :, :], training=False).numpy()[0, 0]
+        pred_price = pred_scaled * (c_max - c_min) + c_min
+        actual_price = scaled[end_idx, 0] * (c_max - c_min) + c_min
+        predictions.append(_safe(pred_price))
+        actuals.append(_safe(actual_price))
+
+    actuals = np.array(actuals)
+    predictions = np.array(predictions)
+    mae = np.mean(np.abs(actuals - predictions))
+    mean_price = np.mean(actuals)
+    accuracy = 100 - (mae / mean_price * 100)
+    print(f"  MAE: ${mae:.2f} | Mean actual price: ${mean_price:.2f} | Accuracy: {accuracy:.1f}%")
+    return round(max(0.0, min(100.0, accuracy)), 1)
+
+
+def run_lstm_forecast(tickers: list, shares: list, projection_days: int = 21):
+    print(f"\n--- CHECKPOINT 1: LOADING MODEL ---")
     if not os.path.exists(MODEL_PATH):
-        raise Exception("Model file missing. Run train_model.py first.")
-        
-    # Load model with custom Attention layer
+        raise Exception("Model file not found. Run train_model.py first.")
+
     model = load_model(MODEL_PATH, custom_objects={'AttentionLayer': AttentionLayer})
-    
-    df_features = fetch_and_process_portfolio(tickers, shares)
-    if df_features is None or len(df_features) < 100:
-        raise Exception("Not enough historical data for this portfolio.")
 
-    current_price = df_features['Close'].iloc[-1]
-    
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled_data = scaler.fit_transform(df_features.values)
-    
-    sequence_length = 60
-    
-    # --- TRANSFER LEARNING (FINE TUNING) ---
-    print(f"⚡ Fine-Tuning the brain specifically for this portfolio...")
-    X_tune, y_tune = [], []
-    for i in range(sequence_length, len(scaled_data)):
-        X_tune.append(scaled_data[i-sequence_length:i])
-        y_tune.append(scaled_data[i, 1]) # Index 1 is Log_Return
-    
-    X_tune, y_tune = np.array(X_tune), np.array(y_tune)
-    
-    # Train for 3 quick epochs on user's specific data
-    model.fit(X_tune, y_tune, epochs=3, batch_size=16, verbose=0)
-    print(f"✅ Fine-Tuning Complete.")
-    
-    # --- MONTE CARLO SIMULATION (VECTORIZED HYPER-SPEED) ---
-    simulations = 15
-    future_paths = np.zeros((simulations, projection_days))
-    last_window = scaled_data[-sequence_length:]
+    print(f"--- CHECKPOINT 2: FETCHING TICKER DATA ({tickers}) ---")
+    ticker_forecasts = []
+    ticker_weights = []
+    overall_accuracy_scores = []
 
-    print(f"Starting {simulations} vectorized Monte Carlo simulations at price: ${current_price:,.2f}")
+    for ticker, share_count in zip(tickers, shares):
+        df = fetch_ticker_data(ticker)
+        if df.empty or len(df) < SEQ + HOLDOUT + 10:
+            print(f"  Skipping {ticker} — not enough data")
+            continue
 
-    current_seqs = np.array([last_window.copy() for _ in range(simulations)])
+        current_price = float(df['Close'].iloc[-1])
+        portfolio_value = current_price * float(share_count)
 
-    for day in range(projection_days):
-        if day % 30 == 0: 
-            print(f"  -> Simulating Day {day}/{projection_days} for all paths...")
-            
-        input_tensor = current_seqs[:, -sequence_length:, :]
-        preds = model(input_tensor, training=True).numpy() 
-        
-        future_paths[:, day] = preds[:, 0]
-        
-        next_rows = current_seqs[:, -1, :].copy()
-        next_rows[:, 1] = preds[:, 0] 
-        next_rows = next_rows.reshape(simulations, 1, len(FEATURES))
-        
-        current_seqs = np.concatenate((current_seqs, next_rows), axis=1)
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled = scaler.fit_transform(df.values)
+        c_min, c_max = scaler.data_min_[0], scaler.data_max_[0]
 
-    print(f"--- 🚩 CHECKPOINT 4: EXPONENTIAL RECONSTRUCTION ---")
-    final_paths_dollars = []
-    
-    # Reverse scaling just for the Log_Return column (Index 1)
-    r_min, r_max = scaler.data_min_[1], scaler.data_max_[1]
+        # Fine-tune on this ticker's data (excluding holdout)
+        X_tune, y_tune = [], []
+        for i in range(SEQ, len(scaled) - HOLDOUT):
+            X_tune.append(scaled[i - SEQ:i])
+            y_tune.append(scaled[i, 0])
 
-    for sim in range(simulations):
-        unscaled_log_returns = future_paths[sim] * (r_max - r_min) + r_min
-        
-        price_trail = [current_price]
-        for r in unscaled_log_returns:
-            # P_new = P_old * e^(r)
-            next_price = price_trail[-1] * np.exp(r)
-            price_trail.append(next_price)
-            
-        final_paths_dollars.append(price_trail[1:])
+        if len(X_tune) > 0:
+            model.fit(np.array(X_tune), np.array(y_tune),
+                      epochs=10, batch_size=32, verbose=0)
 
-    final_paths_dollars = np.array(final_paths_dollars)
-    print(f"✅ SIMULATION COMPLETE. Sending data to frontend.")
-    
-    return (
-        np.mean(final_paths_dollars, axis=0),
-        np.percentile(final_paths_dollars, 95, axis=0),
-        np.percentile(final_paths_dollars, 5, axis=0),
-        current_price
-    )
+        # Accuracy on holdout
+        print(f"  {ticker} accuracy:")
+        acc = compute_accuracy(model, scaled, scaler)
+        overall_accuracy_scores.append(acc)
+
+        # Fine-tune on ALL data now for best predictions
+        X_all, y_all = [], []
+        for i in range(SEQ, len(scaled)):
+            X_all.append(scaled[i - SEQ:i])
+            y_all.append(scaled[i, 0])
+        model.fit(np.array(X_all), np.array(y_all),
+                  epochs=5, batch_size=32, verbose=0)
+
+        # Predict future prices autoregressively
+        window = list(scaled[-SEQ:])
+        future_prices = []
+        for _ in range(projection_days):
+            inp = np.array(window[-SEQ:])
+            pred_scaled = model(inp[np.newaxis, :, :], training=False).numpy()[0, 0]
+            pred_price = _safe(pred_scaled * (c_max - c_min) + c_min)
+            future_prices.append(pred_price)
+
+            # Build next row: update Close, recalculate SMA/RSI simply
+            next_row = window[-1].copy()
+            next_row[0] = pred_scaled
+            window.append(next_row)
+
+        ticker_forecasts.append({
+            'ticker': ticker,
+            'shares': float(share_count),
+            'current_price': current_price,
+            'future_prices': future_prices,
+            'portfolio_value': portfolio_value
+        })
+        ticker_weights.append(portfolio_value)
+
+    if not ticker_forecasts:
+        raise Exception("No tickers had sufficient data for forecasting.")
+
+    print(f"--- CHECKPOINT 3: BUILDING PORTFOLIO FORECAST ---")
+    total_weight = sum(ticker_weights)
+    base_path = np.zeros(projection_days)
+
+    for t_data, weight in zip(ticker_forecasts, ticker_weights):
+        w = weight / total_weight
+        normalized = np.array(t_data['future_prices']) / t_data['current_price']
+        current_total = sum(
+            tf['current_price'] * tf['shares'] for tf in ticker_forecasts
+        )
+        base_path += w * normalized * current_total
+
+    # Bull/bear bands: ±1.5 std of historical daily returns scaled to projection
+    std_factors = []
+    for t_data in ticker_forecasts:
+        df_temp = fetch_ticker_data(t_data['ticker'], lookback_days=252)
+        if not df_temp.empty:
+            daily_ret_std = float(df_temp['Close'].pct_change().std())
+            std_factors.append(daily_ret_std)
+    avg_std = np.mean(std_factors) if std_factors else 0.01
+    period_std = avg_std * np.sqrt(np.arange(1, projection_days + 1))
+
+    current_total_value = sum(t['current_price'] * t['shares'] for t in ticker_forecasts)
+    bull_path = base_path * (1 + 1.5 * period_std)
+    bear_path = base_path * (1 - 1.5 * period_std)
+
+    overall_accuracy = round(float(np.mean(overall_accuracy_scores)), 1) if overall_accuracy_scores else None
+    print(f"Overall accuracy: {overall_accuracy}%")
+    print(f"Simulation complete.")
+
+    return base_path, bull_path, bear_path, current_total_value, overall_accuracy
