@@ -28,11 +28,15 @@ class AttentionLayer(Layer):
         return super(AttentionLayer, self).get_config()
 
 
-# Features used — Close is the target (index 0)
-FEATURES = ['Close', 'SMA_20', 'SMA_50', 'RSI']
+# NEW: We are now targeting 'Returns' at index 0
+FEATURES = ['Returns', 'SMA_20', 'SMA_50', 'RSI']
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     close = df['Close'].squeeze()
+    
+    # NEW: Calculate daily returns
+    df['Returns'] = close.pct_change().fillna(0)
+    
     df['SMA_20'] = close.rolling(20).mean()
     df['SMA_50'] = close.rolling(50).mean()
     delta = close.diff()
@@ -45,6 +49,9 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 def pretrain_base_model():
     print("--- BUILDING BASE MODEL (SPY 10yr) ---")
     spy_df = yf.download("SPY", period="10y", progress=False, auto_adjust=True)
+    if isinstance(spy_df.columns, pd.MultiIndex):
+        spy_df.columns = spy_df.columns.get_level_values(0)
+        
     spy_df = add_indicators(spy_df)
     data = spy_df[FEATURES].values
 
@@ -55,7 +62,7 @@ def pretrain_base_model():
     X, y = [], []
     for i in range(SEQ, len(scaled)):
         X.append(scaled[i - SEQ:i])
-        y.append(scaled[i, 0])  # Predict next Close (index 0)
+        y.append(scaled[i, 0])  # Predict next Return (index 0)
 
     X, y = np.array(X), np.array(y)
     print(f"Training samples: {len(X)}")
@@ -78,7 +85,6 @@ def pretrain_base_model():
     path = os.path.join(os.path.dirname(__file__), "portfolio_lstm.keras")
     model.save(path)
     print(f"Model saved to {path}")
-
 
 if __name__ == "__main__":
     pretrain_base_model()

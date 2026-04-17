@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Send, Bot, AlertTriangle, TrendingDown, TrendingUp,
-  Activity, Sparkles, User, ChevronRight, Loader2, BarChart3, Play
+  Send, Bot, AlertTriangle, Activity, Sparkles, User, Loader2, BarChart3, Play
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { fetchPortfolios, type Portfolio } from "@/lib/api";
@@ -29,6 +28,9 @@ export default function SimulationPage() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [isChartLoading, setIsChartLoading] = useState(false);
   const [accuracy, setAccuracy] = useState<number | null>(null);
+  
+  // NEW: State to hold the streaming checkpoints
+  const [checkpoints, setCheckpoints] = useState<string[]>([]);
 
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -51,22 +53,48 @@ export default function SimulationPage() {
     loadData();
   }, []);
 
-  // MANUAL TRIGGER FUNCTION
+  // MANUAL TRIGGER FUNCTION WITH STREAMING LISTENER
   const handleRunSimulation = async () => {
     if (!selectedPortfolioId) return;
 
     setIsChartLoading(true);
-    console.log("🚀 User triggered Simulation for Portfolio:", selectedPortfolioId);
+    setCheckpoints([]); // Clear old terminal logs
+    setChartData([]);
+    setAccuracy(null);
 
     try {
       const response = await fetch(`http://127.0.0.1:8000/forecast/lstm/${selectedPortfolioId}?timeframe=${timeframe}`);
-      if (!response.ok) throw new Error("Failed to fetch LSTM projection");
-      const data = await response.json();
-      setChartData(data.chart);
-      setAccuracy(data.accuracy);
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            if (data.type === "progress") {
+              setCheckpoints((prev) => [...prev, data.message]);
+            } else if (data.type === "result") {
+              setChartData(data.chart);
+              setAccuracy(data.accuracy);
+            } else if (data.type === "error") {
+              throw new Error(data.message);
+            }
+          } catch (e) {
+            console.error("Failed to parse chunk:", line);
+          }
+        }
+      }
     } catch (error) {
       console.error("Simulation failed:", error);
-      alert("Simulation failed. Check your backend terminal for checkpoints.");
+      alert("Simulation failed. Check console for details.");
     } finally {
       setIsChartLoading(false);
     }
@@ -157,10 +185,19 @@ export default function SimulationPage() {
           </div>
         </CardHeader>
         <CardContent className="h-[350px] w-full relative pt-6">
+          {/* NEW: TERMINAL STREAMING UI */}
           {isChartLoading && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
-              <Loader2 className="animate-spin text-blue-500 mb-2" size={32} />
-              <p className="text-sm font-semibold text-slate-700">Executing LSTM Simulations...</p>
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] p-6">
+              <Loader2 className="animate-spin text-blue-500 mb-4" size={32} />
+              <div className="w-full max-w-md bg-slate-900 rounded-lg p-4 font-mono text-[10px] text-green-400 h-40 overflow-y-auto flex flex-col justify-end shadow-2xl border border-slate-800">
+                {checkpoints.map((cp, idx) => (
+                  <div key={idx} className="animate-in fade-in slide-in-from-bottom-2 mb-1">
+                    <span className="text-slate-500 mr-2">{'>'}</span> {cp}
+                  </div>
+                ))}
+                {/* Blinking cursor effect */}
+                <div className="animate-pulse text-green-400 mt-1">_</div>
+              </div>
             </div>
           )}
 
