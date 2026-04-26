@@ -37,11 +37,13 @@ function normalizeScenario(id: string, data: ScenarioMeta) {
   return {
     id,
     ...data,
+    title: data.title || data.label || "",       // add this line
     description: data.description || data.shortDescription || "",
     startDate: data.startDate || derivedDates.startDate || "",
     endDate: data.endDate || derivedDates.endDate || "",
     markers: Array.isArray(data.markers) ? data.markers : [],
   };
+
 }
 
 export function getAllScenarios() {
@@ -63,7 +65,7 @@ export function getAllScenarios() {
 
       return normalizeScenario(id, data);
     })
-    .sort((a, b) => String(a.title || a.label || a.id).localeCompare(String(b.title || b.label || b.id)));
+    .sort((a, b) => String(a.title || a.id).localeCompare(String(b.title || b.id)));
 }
 
 export async function getScenarioById(id: string) {
