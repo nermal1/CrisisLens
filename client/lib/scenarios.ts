@@ -31,7 +31,7 @@ function parseDateRange(dateRange?: string): { startDate?: string; endDate?: str
   return {};
 }
 
-function normalizeScenario(id: string, data: ScenarioMeta) {
+function normalizeScenario(id: string, data: ScenarioMeta): ScenarioMeta & { id: string; title: string; description: string; startDate: string; endDate: string; markers: any[] } {
   const derivedDates = parseDateRange(data.dateRange);
 
   return {

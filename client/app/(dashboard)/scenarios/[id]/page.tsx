@@ -36,7 +36,7 @@ export default async function ScenarioDetailPage({
 
   const { metadata, content } = scenario;
 
-  const title = metadata.title || metadata.label || id;
+  const title = metadata.title || id;
   const description =
     metadata.description ||
     metadata.shortDescription ||

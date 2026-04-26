@@ -22,7 +22,7 @@ export default function ScenariosPage() {
                 className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
               >
                 <h2 className="mb-2 text-2xl font-semibold">
-                  {scenario.title || scenario.label || scenario.id}
+                  {scenario.title || scenario.id}
                 </h2>
 
                 <p className="mb-4 text-sm text-gray-600">
