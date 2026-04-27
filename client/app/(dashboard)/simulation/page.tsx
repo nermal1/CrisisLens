@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { fetchPortfolios, type Portfolio } from "@/lib/api";
+import AISummaryBox from "@/components/ui/AISummaryBox";
 
 type UIAction = {
   type: "none" | "options" | "portfolio_select";
@@ -225,6 +226,22 @@ export default function SimulationPage() {
           )}
         </CardContent>
       </Card>
+
+      {chartData.length > 0 && (
+        <AISummaryBox
+          type="lstm"
+          data={{
+            portfolio_name: portfolios.find(p => p.id === selectedPortfolioId)?.name || "Portfolio",
+            tickers: portfolios.find(p => p.id === selectedPortfolioId)?.holdings?.map(h => h.ticker) || [],
+            timeframe,
+            current_value: chartData[0]?.base,
+            base_end: chartData[chartData.length - 1]?.base,
+            bull_end: chartData[chartData.length - 1]?.bull,
+            bear_end: chartData[chartData.length - 1]?.bear,
+            accuracy_percent: accuracy,
+          }}
+        />
+      )}
 
       {/* SECTION 2: THE CHAOS LAB (Chat Logic) */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-[550px]">

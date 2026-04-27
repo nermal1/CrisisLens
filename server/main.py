@@ -6,7 +6,7 @@ from jose import JWTError
 from database import Base, engine
 import models
 from config import settings
-from routers import portfolios, auth_email, tickers, news, chaos, forecast
+from routers import portfolios, auth_email, tickers, news, chaos, forecast, summarize
 
 
 
@@ -36,6 +36,7 @@ app.include_router(tickers.router)
 app.include_router(news.router)
 app.include_router(chaos.router)
 app.include_router(forecast.router)
+app.include_router(summarize.router)
 
 # Global exception handler for JWT errors
 @app.exception_handler(JWTError)

@@ -5,6 +5,7 @@ import { fetchPortfolioNews, type PortfolioNewsResponse, type NewsArticle } from
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Newspaper, ExternalLink, AlertTriangle } from "lucide-react";
+import AISummaryBox from "@/components/ui/AISummaryBox";
 
 interface NewsPanelProps {
   portfolioId: string;
@@ -164,6 +165,22 @@ export default function NewsPanel({ portfolioId, scenarioId }: NewsPanelProps) {
                 Based on {aggregate.total} articles across {data.tickers_analyzed.length} holdings
               </p>
             </div>
+
+            <AISummaryBox
+              type="news"
+              data={{
+                overall_sentiment: scoreLabel,
+                score: aggregate.score,
+                total_articles: aggregate.total,
+                positive: aggregate.positive,
+                negative: aggregate.negative,
+                neutral: aggregate.neutral,
+                tickers_analyzed: data.tickers_analyzed,
+                by_ticker: Object.fromEntries(
+                  Object.entries(data.by_ticker).map(([t, d]) => [t, d.counts])
+                ),
+              }}
+            />
 
             {Object.entries(data.by_ticker).map(([ticker, tickerData]) => (
               <div key={ticker} className="space-y-2">

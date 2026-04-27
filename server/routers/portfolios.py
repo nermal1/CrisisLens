@@ -639,7 +639,7 @@ async def get_portfolio_history(
         history_series = pd.Series(0.0, index=data.index)
         for ticker, shares in holding_map.items():
             if ticker in data.columns:
-                history_series += data[ticker].fillna(method="ffill") * shares
+                history_series += data[ticker].ffill() * shares
 
         chart_data = [
             {

@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createPortfolio, addHoldings } from "@/lib/api";
-import { TickerSearch } from "@/components/ui/TickerSearch"; // Import the new component
+import { TickerSearch } from "@/components/ui/TickerSearch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Upload, Save, Loader2 } from "lucide-react";
+import { Plus, Trash2, Upload, Save, Loader2, FileText, X } from "lucide-react";
 
 export default function CreatePortfolioPage() {
   const router = useRouter();
@@ -19,6 +19,90 @@ export default function CreatePortfolioPage() {
   const [manualHoldings, setManualHoldings] = useState([
     { ticker: "", shares: "", price: "" }
   ]);
+
+  const [csvHoldings, setCsvHoldings] = useState<{ ticker: string; shares: string; price: string }[]>([]);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function parseCSV(text: string) {
+    setCsvError(null);
+    const lines = text.trim().split("\n").filter(l => l.trim());
+    if (lines.length < 2) {
+      setCsvError("CSV must have a header row and at least one data row.");
+      return;
+    }
+
+    const header = lines[0].toLowerCase().replace(/\s/g, "").split(",");
+    const tickerIdx = header.findIndex(h => h.includes("ticker") || h.includes("symbol"));
+    const sharesIdx = header.findIndex(h => h.includes("share") || h.includes("qty") || h.includes("quantity"));
+    const priceIdx = header.findIndex(h => h.includes("price") || h.includes("avg") || h.includes("cost"));
+
+    if (tickerIdx === -1 || sharesIdx === -1) {
+      setCsvError("CSV must have 'ticker' and 'shares' columns.");
+      return;
+    }
+
+    const parsed = lines.slice(1).map(line => {
+      const cols = line.split(",").map(c => c.trim().replace(/"/g, ""));
+      return {
+        ticker: (cols[tickerIdx] || "").toUpperCase(),
+        shares: cols[sharesIdx] || "",
+        price: priceIdx !== -1 ? cols[priceIdx] || "" : "",
+      };
+    }).filter(r => r.ticker && r.shares);
+
+    if (parsed.length === 0) {
+      setCsvError("No valid rows found in CSV.");
+      return;
+    }
+
+    setCsvHoldings(parsed);
+  }
+
+  function handleFileUpload(file: File) {
+    if (!file.name.endsWith(".csv")) {
+      setCsvError("Please upload a .csv file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => parseCSV(e.target?.result as string);
+    reader.readAsText(file);
+  }
+
+  function downloadTemplate() {
+    const content = "ticker,shares,avg_price\nAAPL,10,150.00\nNVDA,5,200.00\n";
+    const blob = new Blob([content], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "portfolio_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleCreateFromCSV() {
+    if (!name) return alert("Please give your portfolio a name.");
+    if (csvHoldings.length === 0) return alert("Please upload a CSV with holdings first.");
+    setLoading(true);
+    try {
+      const portfolio = await createPortfolio(name, description);
+      const holdingsData = csvHoldings
+        .filter(h => h.ticker && h.shares)
+        .map(h => ({
+          ticker: h.ticker,
+          shares: parseFloat(h.shares),
+          avg_price_paid: parseFloat(h.price || "0"),
+        }));
+      await addHoldings(portfolio.id, holdingsData);
+      router.push("/portfolios");
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const addManualRow = () => {
     setManualHoldings([...manualHoldings, { ticker: "", shares: "", price: "" }]);
@@ -166,7 +250,84 @@ export default function CreatePortfolioPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        {/* CSV Tab content remains the same */}
+        <TabsContent value="csv">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg">Upload CSV</CardTitle>
+                <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                  <FileText size={14} className="mr-1" /> Download Template
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div
+                className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
+                  isDragging ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const file = e.dataTransfer.files[0];
+                  if (file) handleFileUpload(file);
+                }}
+              >
+                <Upload size={28} className="mx-auto mb-3 text-slate-400" />
+                <p className="font-medium text-slate-700">Click or drag a CSV file here</p>
+                <p className="text-xs text-slate-400 mt-1">Required columns: ticker, shares — optional: avg_price</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
+                />
+              </div>
+
+              {csvError && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <X size={16} /> {csvError}
+                </div>
+              )}
+
+              {csvHoldings.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-700">{csvHoldings.length} holdings parsed</p>
+                    <Button variant="ghost" size="sm" className="text-red-500 text-xs" onClick={() => setCsvHoldings([])}>
+                      Clear
+                    </Button>
+                  </div>
+                  <div className="rounded-xl border overflow-hidden">
+                    <div className="grid grid-cols-3 gap-4 px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase">
+                      <span>Ticker</span><span>Shares</span><span>Avg Price</span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y">
+                      {csvHoldings.map((row, i) => (
+                        <div key={i} className="grid grid-cols-3 gap-4 px-4 py-2 text-sm">
+                          <span className="font-semibold text-slate-800">{row.ticker}</span>
+                          <span>{row.shares}</span>
+                          <span className="text-slate-500">{row.price || "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={handleCreateFromCSV}
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" size={16} />}
+                    Create Portfolio from CSV
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );

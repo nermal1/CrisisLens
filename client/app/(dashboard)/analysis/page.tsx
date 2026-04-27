@@ -28,6 +28,7 @@ import {
   Gauge,
 } from "lucide-react";
 import PerformanceChart from "@/components/ui/PerformanceChart";
+import AISummaryBox from "@/components/ui/AISummaryBox";
 import { getDynamicScenarios } from "@/app/actions";
 
 type ScenarioMarker = {
@@ -682,6 +683,29 @@ export default function AnalysisDashboardPage() {
             )}
           </CardContent>
         </Card>
+
+        {riskMetrics && (
+          <AISummaryBox
+            type="scenario"
+            data={{
+              scenario: selectedScenarioData.label,
+              portfolio: selectedPortfolioObj?.name,
+              window: `${selectedScenarioData.startDate} → ${selectedScenarioData.endDate}`,
+              volatility: riskMetrics.volatility,
+              max_drawdown: riskMetrics.max_drawdown,
+              sharpe_ratio: riskMetrics.sharpe_ratio,
+              annualized_return: riskMetrics.annualized_return,
+              risk_gauge_score: riskGauge?.score,
+              risk_gauge_label: riskGauge?.label,
+              vulnerability_score: summaryMetrics?.vulnerabilityScore,
+              portfolio_beta: summaryMetrics?.portfolioBeta,
+              market_drawdown: summaryMetrics?.marketDrawdown,
+              top_risk_sector: summaryMetrics?.topRisk,
+              top_hedge: summaryMetrics?.topHedge,
+              sector_attribution: sectorAttribution,
+            }}
+          />
+        )}
 
         <NewsPanel portfolioId={selectedPortfolio} scenarioId={selectedScenarioData.id} />
       </div>
