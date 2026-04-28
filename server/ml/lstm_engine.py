@@ -124,6 +124,11 @@ def compute_accuracy(model, scaled: np.ndarray, scaler: MinMaxScaler, actual_pri
 
 
 def run_lstm_forecast(tickers: list, shares: list, projection_days: int = 21):
+    import tensorflow as tf
+    import gc
+    tf.keras.backend.clear_session()
+    gc.collect()
+
     yield json.dumps({"type": "progress", "message": "LOADING AI MODEL..."}) + "\n"
     
     if not os.path.exists(MODEL_PATH):
